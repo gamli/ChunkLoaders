@@ -1,5 +1,6 @@
 package com.supermartijn642.chunkloaders;
 
+import com.simibubi.create.AllMovementBehaviours;
 import com.supermartijn642.chunkloaders.packet.PacketToggleChunk;
 import net.minecraft.block.Block;
 import net.minecraft.item.BlockItem;
@@ -56,10 +57,24 @@ public class ChunkLoaders {
     public static class RegistryEvents {
         @SubscribeEvent
         public static void onBlockRegistry(final RegistryEvent.Register<Block> e){
-            e.getRegistry().register(new ChunkLoaderBlock("single_chunk_loader", ChunkLoaderBlock.SINGLE_SHAPE, () -> new ChunkLoaderTile(single_chunk_loader_tile, ChunkLoadersConfig.singleChunkLoaderRadius.get() * 2 - 1), ChunkLoadersConfig.singleChunkLoaderRadius.get() * 2 - 1));
-            e.getRegistry().register(new ChunkLoaderBlock("basic_chunk_loader", ChunkLoaderBlock.BASIC_SHAPE, () -> new ChunkLoaderTile(basic_chunk_loader_tile, ChunkLoadersConfig.basicChunkLoaderRadius.get() * 2 - 1), ChunkLoadersConfig.basicChunkLoaderRadius.get() * 2 - 1));
-            e.getRegistry().register(new ChunkLoaderBlock("advanced_chunk_loader", ChunkLoaderBlock.ADVANCED_SHAPE, () -> new ChunkLoaderTile(advanced_chunk_loader_tile, ChunkLoadersConfig.advancedChunkLoaderRadius.get() * 2 - 1), ChunkLoadersConfig.advancedChunkLoaderRadius.get() * 2 - 1));
-            e.getRegistry().register(new ChunkLoaderBlock("ultimate_chunk_loader", ChunkLoaderBlock.ULTIMATE_SHAPE, () -> new ChunkLoaderTile(ultimate_chunk_loader_tile, ChunkLoadersConfig.ultimateChunkLoaderRadius.get() * 2 - 1), ChunkLoadersConfig.ultimateChunkLoaderRadius.get() * 2 - 1));
+            
+            ChunkLoaderMovementBehaviour chunkLoaderMovementBehaviour = new ChunkLoaderMovementBehaviour();
+            
+            ChunkLoaderBlock singleChunkLoader = new ChunkLoaderBlock("single_chunk_loader", ChunkLoaderBlock.SINGLE_SHAPE, () -> new ChunkLoaderTile(single_chunk_loader_tile, ChunkLoadersConfig.singleChunkLoaderRadius.get() * 2 - 1), ChunkLoadersConfig.singleChunkLoaderRadius.get() * 2 - 1);
+            e.getRegistry().register(singleChunkLoader);
+            AllMovementBehaviours.addMovementBehaviour(singleChunkLoader, chunkLoaderMovementBehaviour);
+
+            ChunkLoaderBlock basicChunkLoader = new ChunkLoaderBlock("basic_chunk_loader", ChunkLoaderBlock.BASIC_SHAPE, () -> new ChunkLoaderTile(basic_chunk_loader_tile, ChunkLoadersConfig.basicChunkLoaderRadius.get() * 2 - 1), ChunkLoadersConfig.basicChunkLoaderRadius.get() * 2 - 1);
+            e.getRegistry().register(basicChunkLoader);
+            AllMovementBehaviours.addMovementBehaviour(basicChunkLoader, chunkLoaderMovementBehaviour);
+
+            ChunkLoaderBlock advancedChunkLoader = new ChunkLoaderBlock("advanced_chunk_loader", ChunkLoaderBlock.ADVANCED_SHAPE, () -> new ChunkLoaderTile(advanced_chunk_loader_tile, ChunkLoadersConfig.advancedChunkLoaderRadius.get() * 2 - 1), ChunkLoadersConfig.advancedChunkLoaderRadius.get() * 2 - 1);
+            e.getRegistry().register(advancedChunkLoader);
+            AllMovementBehaviours.addMovementBehaviour(advancedChunkLoader, chunkLoaderMovementBehaviour);
+
+            ChunkLoaderBlock ultimateChunkLoader = new ChunkLoaderBlock("ultimate_chunk_loader", ChunkLoaderBlock.ULTIMATE_SHAPE, () -> new ChunkLoaderTile(ultimate_chunk_loader_tile, ChunkLoadersConfig.ultimateChunkLoaderRadius.get() * 2 - 1), ChunkLoadersConfig.ultimateChunkLoaderRadius.get() * 2 - 1);
+            e.getRegistry().register(ultimateChunkLoader);
+            AllMovementBehaviours.addMovementBehaviour(ultimateChunkLoader, chunkLoaderMovementBehaviour);
         }
 
         @SubscribeEvent

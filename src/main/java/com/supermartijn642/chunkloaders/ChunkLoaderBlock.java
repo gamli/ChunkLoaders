@@ -1,12 +1,10 @@
 package com.supermartijn642.chunkloaders;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockRenderType;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.IWaterLoggable;
+import net.minecraft.block.*;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.material.MaterialColor;
 import net.minecraft.client.util.ITooltipFlag;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.fluid.Fluids;
@@ -54,7 +52,7 @@ public class ChunkLoaderBlock extends Block implements IWaterLoggable {
     private final Supplier<? extends TileEntity> tileProvider;
     private final int gridSize;
 
-    public ChunkLoaderBlock(String registryName, VoxelShape shape, Supplier<? extends TileEntity> tileProvider, int gridSize){
+    public ChunkLoaderBlock(String registryName, VoxelShape shape, Supplier<? extends TileEntity> tileProvider, int gridSize) {
         super(Properties.of(Material.METAL, MaterialColor.COLOR_GRAY).strength(1.5f, 6).harvestLevel(1).harvestTool(ToolType.PICKAXE));
         this.setRegistryName(registryName);
         this.shape = shape;
@@ -65,77 +63,84 @@ public class ChunkLoaderBlock extends Block implements IWaterLoggable {
     }
 
     @Override
-    public ActionResultType use(BlockState state, World worldIn, BlockPos pos, PlayerEntity player, Hand handIn, BlockRayTraceResult p_225533_6_){
-        if(worldIn.isClientSide)
+    public ActionResultType use(BlockState state, World worldIn, BlockPos pos, PlayerEntity player, Hand handIn, BlockRayTraceResult p_225533_6_) {
+        if (worldIn.isClientSide)
             ClientProxy.openScreen(this, worldIn, pos);
         return ActionResultType.SUCCESS;
     }
 
     @Override
-    public VoxelShape getShape(BlockState state, IBlockReader worldIn, BlockPos pos, ISelectionContext context){
+    public VoxelShape getShape(BlockState state, IBlockReader worldIn, BlockPos pos, ISelectionContext context) {
         return this.shape;
     }
 
     @Override
-    public boolean hasTileEntity(BlockState state){
+    public boolean hasTileEntity(BlockState state) {
         return true;
     }
 
     @Nullable
     @Override
-    public TileEntity createTileEntity(BlockState state, IBlockReader world){
+    public TileEntity createTileEntity(BlockState state, IBlockReader world) {
         return this.tileProvider.get();
     }
 
     @Override
-    public BlockRenderType getRenderShape(BlockState state){
+    public BlockRenderType getRenderShape(BlockState state) {
         return BlockRenderType.ENTITYBLOCK_ANIMATED;
     }
 
     @Override
-    public void onPlace(BlockState state, World worldIn, BlockPos pos, BlockState oldState, boolean isMoving){
-        TileEntity tile = worldIn.getBlockEntity(pos);
-        if(tile instanceof ChunkLoaderTile)
-            ((ChunkLoaderTile)tile).loadAll();
+    public void setPlacedBy(World worldIn, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
+        ChunkLoaderUtil.debug("block.setPlacedBy() called");
+        TileEntity tileEntity = worldIn.getBlockEntity(pos);
+        if (tileEntity instanceof ChunkLoaderTile) {
+            ((ChunkLoaderTile) tileEntity).setPlacedBy(worldIn, pos, state, placer, stack);
+        } else {
+            ChunkLoaderUtil.error("block.setPlacedBy() wrong tile entity: " + tileEntity);
+        }
     }
 
     @Override
-    public void onRemove(BlockState state, World worldIn, BlockPos pos, BlockState newState, boolean isMoving){
+    public void onPlace(BlockState state, World worldIn, BlockPos pos, BlockState oldState, boolean isMoving) {
+        ChunkLoaderUtil.debug("block.onPlace() called");
         TileEntity tile = worldIn.getBlockEntity(pos);
-        if(tile instanceof ChunkLoaderTile)
-            ((ChunkLoaderTile)tile).unloadAll();
-        super.onRemove(state, worldIn, pos, newState, isMoving);
+        if (tile instanceof ChunkLoaderTile) {
+            ((ChunkLoaderTile) tile).onPlace();
+        } else {
+            ChunkLoaderUtil.error("block.onPlace() tile entity is not a ChunkLoaderTile: " + tile);
+        }
     }
 
     @Override
     @OnlyIn(Dist.CLIENT)
-    public void appendHoverText(ItemStack stack, IBlockReader world, List<ITextComponent> tooltip, ITooltipFlag advanced){
-        if(this.gridSize == 1)
+    public void appendHoverText(ItemStack stack, IBlockReader world, List<ITextComponent> tooltip, ITooltipFlag advanced) {
+        if (this.gridSize == 1)
             tooltip.add(new TranslationTextComponent("chunkloaders.chunk_loader.info.single").withStyle(TextFormatting.AQUA));
         else
             tooltip.add(new TranslationTextComponent("chunkloaders.chunk_loader.info.multiple", this.gridSize).withStyle(TextFormatting.AQUA));
     }
 
     @Override
-    public BlockState getStateForPlacement(BlockItemUseContext context){
+    public BlockState getStateForPlacement(BlockItemUseContext context) {
         FluidState fluidstate = context.getLevel().getFluidState(context.getClickedPos());
         return this.defaultBlockState().setValue(WATERLOGGED, fluidstate.getType() == Fluids.WATER);
     }
 
     @Override
-    public FluidState getFluidState(BlockState state){
+    public FluidState getFluidState(BlockState state) {
         return state.getValue(WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(state);
     }
 
     @Override
-    public BlockState updateShape(BlockState stateIn, Direction facing, BlockState facingState, IWorld worldIn, BlockPos currentPos, BlockPos facingPos){
+    public BlockState updateShape(BlockState stateIn, Direction facing, BlockState facingState, IWorld worldIn, BlockPos currentPos, BlockPos facingPos) {
         if (stateIn.getValue(WATERLOGGED))
             worldIn.getLiquidTicks().scheduleTick(currentPos, Fluids.WATER, Fluids.WATER.getTickDelay(worldIn));
         return super.updateShape(stateIn, facing, facingState, worldIn, currentPos, facingPos);
     }
 
     @Override
-    protected void createBlockStateDefinition(StateContainer.Builder<Block,BlockState> builder){
+    protected void createBlockStateDefinition(StateContainer.Builder<Block, BlockState> builder) {
         builder.add(BlockStateProperties.WATERLOGGED);
     }
 }
