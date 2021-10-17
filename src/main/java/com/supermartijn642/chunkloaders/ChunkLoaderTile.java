@@ -1,5 +1,6 @@
 package com.supermartijn642.chunkloaders;
 
+import dev.ftb.mods.ftbchunks.client.ChunkScreen;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -31,8 +32,8 @@ public class ChunkLoaderTile extends TileEntity {
 
     public final int animationOffset = new Random().nextInt(20000);
 
-    private UUID teamId;
-    private UUID playerId;
+    private UUID team;
+    private UUID player;
     private int gridSize;
     private int radius;
     private boolean[][] grid; // [x][z]
@@ -47,7 +48,7 @@ public class ChunkLoaderTile extends TileEntity {
     }
 
     public void setPlacedBy(World worldIn, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
-        
+
         if (isClientSide(worldIn)) {
             return;
         }
@@ -63,8 +64,8 @@ public class ChunkLoaderTile extends TileEntity {
         }
 
         UUID playerId = player.getUUID();
-        this.playerId = playerId;
-        this.teamId = FTBTeamsAPI.getPlayerTeam(playerId).getId();
+        this.player = playerId;
+        this.team = FTBTeamsAPI.getPlayerTeam(playerId).getId();
         for (int x = 0; x < this.gridSize; x++) {
             for (int z = 0; z < this.gridSize; z++) {
                 this.grid[x][z] = true;
@@ -85,22 +86,9 @@ public class ChunkLoaderTile extends TileEntity {
 
         ChunkLoaderUtil.debug("tile.setRemoved() called");
 
-        if (this.teamId != null && this.playerId != null) {
-            this.level.getCapability(ChunkLoaderUtil.TRACKER_CAPABILITY).ifPresent(tracker -> {
-                ChunkPos pos = this.level.getChunk(this.worldPosition).getPos();
-                for (int x = 0; x < this.gridSize; x++) {
-                    for (int z = 0; z < this.gridSize; z++) {
-                        if (this.grid[x][z]) {
-                            tracker.remove(
-                                    new ChunkPos(pos.x + x - radius, pos.z + z - radius),
-                                    this.worldPosition,
-                                    this.teamId,
-                                    this.playerId);
-                        }
-                    }
-                }
-            });
-        }
+        List<ChunkPos> chunks = activeChunks(this.level, this.worldPosition, this.grid);
+
+        unloadChunks(this.level, this.worldPosition, this.team, this.player, chunks);
     }
 
     public void onPlace() {
@@ -108,119 +96,132 @@ public class ChunkLoaderTile extends TileEntity {
         if (isClientSide()) {
             return;
         }
-        
+
         ChunkLoaderUtil.debug("tile.onPlace() called");
-        if (this.teamId != null && this.playerId != null) {
+        if (this.team != null && this.player != null) {
             loadChunks();
         } else {
-            ChunkLoaderUtil.debug("Missing team or player - team: " + this.teamId + ", player: " + this.playerId);
+            ChunkLoaderUtil.debug("Missing team or player - team: " + this.team + ", player: " + this.player);
         }
     }
 
     @Override
     public void onLoad() {
+        super.onLoad();
 
         if (isClientSide()) {
             return;
         }
-        
+
         ChunkLoaderUtil.debug("tile.onLoad() called");
-        super.onLoad();
-        if (this.teamId != null && this.playerId != null) {
+        
+        if (this.team != null && this.player != null) {
             loadChunks();
         } else {
-            ChunkLoaderUtil.debug("Missing team or player - team: " + this.teamId + ", player: " + this.playerId);
+            ChunkLoaderUtil.debug("Missing team or player - team: " + this.team + ", player: " + this.player);
         }
     }
 
     private void loadChunks() {
+
         ChunkLoaderUtil.debug("tile.loadChunks() called");
-        this.level.getCapability(ChunkLoaderUtil.TRACKER_CAPABILITY).ifPresent(tracker -> {
-            ChunkPos chunkPos = this.level.getChunk(this.worldPosition).getPos();
-            for (int x = 0; x < this.gridSize; x++) {
-                for (int z = 0; z < this.gridSize; z++) {
-                    if (this.grid[x][z]) {
-                        tracker.add(
-                                new ChunkPos(chunkPos.x + x - radius, chunkPos.z + z - radius),
-                                this.worldPosition,
-                                this.teamId,
-                                this.playerId);
+
+        List<ChunkPos> chunks = activeChunks(this.level, this.worldPosition, this.grid);
+
+        loadChunks(this.level, this.worldPosition, this.team, this.player, chunks);
+    }
+
+    public static void loadChunks(World world, BlockPos loader, CompoundNBT tag) {
+
+        ChunkLoaderUtil.debug("tile.static.loadChunks(World, BlockPos, CompoundNBT) called");
+
+        ImmutableTriple<Integer, Integer, boolean[][]> sizeRadiusGrid = readSizeRadiusGrid(tag);
+        Integer gridSize = sizeRadiusGrid.left;
+        if (gridSize == null) {
+            ChunkLoaderUtil.error("Missing gridSize");
+        }
+        boolean[][] grid = sizeRadiusGrid.right;
+
+        List<ChunkPos> chunks = activeChunks(world, loader, grid);
+
+        loadChunks(world, loader, tag, chunks);
+    }
+
+    public static void loadChunks(World world, BlockPos loader, CompoundNBT tag, List<ChunkPos> chunks) {
+
+        ChunkLoaderUtil.debug("tile.static.loadChunks(World, BlockPos, CompoundNBT, List<ChunkPos>) called");
+
+        UUID team = readTeam(tag);
+
+        UUID player = readPlayer(tag);
+
+        loadChunks(world, loader, team, player, chunks);
+    }
+
+    public static void loadChunks(World world, BlockPos loader, UUID team, UUID player, List<ChunkPos> chunks) {
+
+        ChunkLoaderUtil.debug("tile.static.loadChunks(World, BlockPos, UUID, UUID, List<ChunkPos>) called");
+
+        if (team != null && player != null) {
+            world.getCapability(ChunkLoaderUtil.TRACKER_CAPABILITY)
+                    .ifPresent(tracker -> chunks.forEach(chunk -> tracker.add(chunk, loader, team, player)));
+        } else {
+            ChunkLoaderUtil.error("Missing team or player - team: " + team + ", player: " + player);
+        }
+    }
+
+    public static void unloadChunks(World world, BlockPos loader, CompoundNBT tag) {
+
+        ChunkLoaderUtil.debug("tile.static.unloadChunks(World, BlockPos, CompoundNBT) called");
+
+        UUID team = readTeam(tag);
+
+        UUID player = readPlayer(tag);
+
+        ImmutableTriple<Integer, Integer, boolean[][]> sizeRadiusGrid = readSizeRadiusGrid(tag);
+        Integer gridSize = sizeRadiusGrid.left;
+        if (gridSize == null) {
+            ChunkLoaderUtil.error("Missing gridSize");
+        }
+        boolean[][] grid = sizeRadiusGrid.right;
+
+        List<ChunkPos> chunks = activeChunks(world, loader, grid);
+
+        unloadChunks(world, loader, team, player, chunks);
+    }
+
+    public static void unloadChunks(World world, BlockPos loader, UUID team, UUID player, List<ChunkPos> chunks) {
+
+        ChunkLoaderUtil.debug("tile.static.unloadChunks(World, BlockPos, UUID, UUID, List<ChunkPos>) called");
+
+        if (team != null && player != null) {
+            world.getCapability(ChunkLoaderUtil.TRACKER_CAPABILITY)
+                    .ifPresent(tracker -> chunks.forEach(chunkPos -> tracker.remove(chunkPos, loader, team, player)));
+        } else {
+            ChunkLoaderUtil.error("Missing team or player - team: " + team + ", player: " + player);
+        }
+    }
+
+    private static List<ChunkPos> activeChunks(World world, BlockPos loader, boolean[][] grid) {
+
+        ChunkLoaderUtil.debug("tile.static.activeChunks(World, BlockPos, boolean[][]) called");
+
+        List<ChunkPos> chunks = new ArrayList<>();
+        if (world != null) {
+            ChunkPos loaderChunk = world.getChunk(loader).getPos();
+            int gridSize = grid.length;
+            int radius = (gridSize - 1) / 2;
+            for (int x = 0; x < gridSize; x++) {
+                for (int z = 0; z < gridSize; z++) {
+                    if (grid[x][z]) {
+                        chunks.add(new ChunkPos(loaderChunk.x + x - radius, loaderChunk.z + z - radius));
                     }
                 }
             }
-        });
-    }
-
-    public static void loadChunks(World world, BlockPos loaderPosition, CompoundNBT tag) {
-
-        ChunkLoaderUtil.debug("tile.static.loadChunks() called");
-
-        UUID team = readTeam(tag);
-
-        UUID player = readPlayer(tag);
-
-        ImmutableTriple<Integer, Integer, boolean[][]> sizeRadiusGrid = readSizeRadiusGrid(tag);
-        Integer gridSize = sizeRadiusGrid.left;
-        if (gridSize == null) {
-            ChunkLoaderUtil.error("Missing gridSize");
-        }
-        int radius = sizeRadiusGrid.middle;
-        boolean[][] grid = sizeRadiusGrid.right;
-
-        if (team != null && player != null) {
-            world.getCapability(ChunkLoaderUtil.TRACKER_CAPABILITY).ifPresent(tracker -> {
-                ChunkPos chunkPos = world.getChunk(loaderPosition).getPos();
-                for (int x = 0; x < gridSize; x++) {
-                    for (int z = 0; z < gridSize; z++) {
-                        if (grid[x][z]) {
-                            tracker.add(
-                                    new ChunkPos(chunkPos.x + x - radius, chunkPos.z + z - radius),
-                                    loaderPosition,
-                                    team,
-                                    player);
-                        }
-                    }
-                }
-            });
         } else {
-            ChunkLoaderUtil.error("Missing team or player - team: " + team + ", player: " + player);
+            ChunkLoaderUtil.error("Missing world");
         }
-    }
-
-    public static void unloadChunks(World world, BlockPos loaderPosition, CompoundNBT tag) {
-
-        ChunkLoaderUtil.debug("tile.static.unloadChunks() called");
-
-        UUID team = readTeam(tag);
-
-        UUID player = readPlayer(tag);
-
-        ImmutableTriple<Integer, Integer, boolean[][]> sizeRadiusGrid = readSizeRadiusGrid(tag);
-        Integer gridSize = sizeRadiusGrid.left;
-        if (gridSize == null) {
-            ChunkLoaderUtil.error("Missing gridSize");
-        }
-        int radius = sizeRadiusGrid.middle;
-        boolean[][] grid = sizeRadiusGrid.right;
-
-        if (team != null && player != null) {
-            world.getCapability(ChunkLoaderUtil.TRACKER_CAPABILITY).ifPresent(tracker -> {
-                ChunkPos pos = world.getChunk(loaderPosition).getPos();
-                for (int x = 0; x < gridSize; x++) {
-                    for (int z = 0; z < gridSize; z++) {
-                        if (grid[x][z]) {
-                            tracker.remove(
-                                    new ChunkPos(pos.x + x - radius, pos.z + z - radius),
-                                    loaderPosition,
-                                    team,
-                                    player);
-                        }
-                    }
-                }
-            });
-        } else {
-            ChunkLoaderUtil.error("Missing team or player - team: " + team + ", player: " + player);
-        }
+        return chunks;
     }
 
     public void toggle(int xOffset, int zOffset) {
@@ -228,7 +229,7 @@ public class ChunkLoaderTile extends TileEntity {
         if (isClientSide()) {
             return;
         }
-        
+
         ChunkLoaderUtil.debug("tile.onToggle() called");
         this.level.getCapability(ChunkLoaderUtil.TRACKER_CAPABILITY).ifPresent(tracker -> {
             ChunkPos pos = this.level.getChunk(this.worldPosition).getPos();
@@ -236,14 +237,14 @@ public class ChunkLoaderTile extends TileEntity {
                 tracker.remove(
                         new ChunkPos(pos.x + xOffset, pos.z + zOffset),
                         this.worldPosition,
-                        this.teamId,
-                        this.playerId);
+                        this.team,
+                        this.player);
             } else {
                 tracker.add(
                         new ChunkPos(pos.x + xOffset, pos.z + zOffset),
                         this.worldPosition,
-                        this.teamId,
-                        this.playerId);
+                        this.team,
+                        this.player);
             }
             this.grid[xOffset + radius][zOffset + radius] = !this.grid[xOffset + radius][zOffset + radius];
         });
@@ -261,7 +262,7 @@ public class ChunkLoaderTile extends TileEntity {
     private boolean isClientSide() {
         return isClientSide(this.level);
     }
-    
+
     private boolean isClientSide(World world) {
         return world == null || world.isClientSide();
     }
@@ -325,13 +326,13 @@ public class ChunkLoaderTile extends TileEntity {
 
         CompoundNBT tag = new CompoundNBT();
 
-        if(this.teamId != null) {
-            tag.putUUID(NBT_TEAM_ID, this.teamId);
+        if (this.team != null) {
+            tag.putUUID(NBT_TEAM_ID, this.team);
             ChunkLoaderUtil.debug("tile.getData() teamId: " + tag.getUUID(NBT_TEAM_ID));
         }
 
-        if(this.playerId != null) {
-            tag.putUUID(NBT_PLAYER_ID, this.playerId);
+        if (this.player != null) {
+            tag.putUUID(NBT_PLAYER_ID, this.player);
             ChunkLoaderUtil.debug("tile.getData() playerId: " + tag.getUUID(NBT_PLAYER_ID));
         }
 
@@ -349,11 +350,11 @@ public class ChunkLoaderTile extends TileEntity {
 
         ChunkLoaderUtil.debug("tile.handleData() called");
 
-        this.teamId = readTeam(tag);
-        ChunkLoaderUtil.debug("tile.handleData() teamId: " + teamId);
+        this.team = readTeam(tag);
+        ChunkLoaderUtil.debug("tile.handleData() teamId: " + team);
 
-        this.playerId = readPlayer(tag);
-        ChunkLoaderUtil.debug("tile.handleData() playerId: " + playerId);
+        this.player = readPlayer(tag);
+        ChunkLoaderUtil.debug("tile.handleData() playerId: " + player);
 
         ImmutableTriple<Integer, Integer, boolean[][]> sizeRadiusGrid = readSizeRadiusGrid(tag);
 
@@ -366,7 +367,7 @@ public class ChunkLoaderTile extends TileEntity {
         this.grid = sizeRadiusGrid.right;
 
         // TODO smelly
-        if(this.level != null && !this.level.isClientSide()) {
+        if (this.level != null && !this.level.isClientSide()) {
             this.dataChanged();
         }
     }

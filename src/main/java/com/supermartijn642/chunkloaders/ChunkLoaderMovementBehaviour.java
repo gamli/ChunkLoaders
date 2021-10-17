@@ -14,6 +14,10 @@ public class ChunkLoaderMovementBehaviour extends MovementBehaviour {
     @Override
     public void visitNewPosition(MovementContext context, BlockPos pos) {
         super.visitNewPosition(context, pos);
+        
+        if(context.world.isClientSide()) {
+            return;
+        }
 
         ChunkLoaderUtil.debug("movement.visitNewPosition() called - pos: " + pos + ", context.position: " + context.position);
 
@@ -29,6 +33,10 @@ public class ChunkLoaderMovementBehaviour extends MovementBehaviour {
     @Override
     public void stopMoving(MovementContext context) {
         super.stopMoving(context);
+
+        if(context.world.isClientSide()) {
+            return;
+        }
 
         ChunkLoaderUtil.debug("movement.stopMoving() called");
         
