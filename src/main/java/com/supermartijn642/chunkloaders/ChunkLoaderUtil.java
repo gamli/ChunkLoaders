@@ -15,7 +15,9 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.text.StringTextComponent;
 import net.minecraft.util.text.TextFormatting;
+import net.minecraft.world.GameRules;
 import net.minecraft.world.World;
+import net.minecraft.world.server.ServerChunkProvider;
 import net.minecraft.world.server.ServerWorld;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.CapabilityInject;
@@ -23,6 +25,7 @@ import net.minecraftforge.common.capabilities.CapabilityManager;
 import net.minecraftforge.common.capabilities.ICapabilitySerializable;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
@@ -96,7 +99,7 @@ public class ChunkLoaderUtil {
         log(message, Level.ERROR);
     }
 
-    public static void log(String message, Level logLevel) {        
+    public static void log(String message, Level logLevel) {
         LogManager.getLogger("ChunkLoaders").log(
                 logLevel,
                 message +
@@ -146,7 +149,7 @@ public class ChunkLoaderUtil {
             CommandSource commandSource = player.createCommandSourceStack();
             ChunkDimPos chunkDimPos = teamPlayerChunk.right;
 
-            if (!this.chunks.containsKey(chunk)) {                
+            if (!this.chunks.containsKey(chunk)) {
                 TrackedChunk newTrackedChunk = new TrackedChunk();
                 this.chunks.put(chunk, newTrackedChunk);
                 ClaimResult claimResult = teamData.claim(commandSource, chunkDimPos, false);
@@ -248,6 +251,18 @@ public class ChunkLoaderUtil {
                     XZ.of(chunk).dim(this.world));
         }
 
+
+        public void moveLoader(BlockPos loaderFrom, BlockPos loaderTo) {
+
+            ChunkLoaderUtil.debug("tracker.move(ChunkPos, BlockPos, BlockPos) called");
+
+            this.chunks.values().forEach(trackedChunk -> {
+                if (trackedChunk.loaders.remove(loaderFrom)) {
+                    trackedChunk.loaders.add(loaderTo);
+                }
+            });
+        }
+
         public CompoundNBT write() {
 
             ChunkLoaderUtil.debug("tracker.write() called");
@@ -313,22 +328,21 @@ public class ChunkLoaderUtil {
         }
     }
 
-//    @SubscribeEvent
-//    public static void onTick(TickEvent.WorldTickEvent e){
-//        if(e.phase != TickEvent.Phase.END || !(e.world instanceof ServerWorld))
-//            return;
-//
-//        ServerWorld world = (ServerWorld)e.world;
-//        ServerChunkProvider chunkProvider = world.getChunkSource();
-//        int tickSpeed = world.getGameRules().getInt(GameRules.RULE_RANDOMTICKING);
-//        if(tickSpeed > 0){
-//            world.getCapability(TRACKER_CAPABILITY).ifPresent(tracker -> {
-//                for(ChunkPos pos : tracker.chunks.keySet()){
-//                    if(chunkProvider.chunkMap.getPlayers(pos, false).count() == 0)
-//                        world.tickChunk(world.getChunk(pos.x, pos.z), tickSpeed);
-//                }
-//            });
-//        }
-//    }
+    @SubscribeEvent
+    public static void onTick(TickEvent.WorldTickEvent e) {
+        if (e.phase != TickEvent.Phase.END || !(e.world instanceof ServerWorld))
+            return;
 
+        ServerWorld world = (ServerWorld) e.world;
+        ServerChunkProvider chunkProvider = world.getChunkSource();
+        int tickSpeed = world.getGameRules().getInt(GameRules.RULE_RANDOMTICKING);
+        if (tickSpeed > 0) {
+            world.getCapability(TRACKER_CAPABILITY).ifPresent(tracker -> {
+                for (ChunkPos pos : tracker.chunks.keySet()) {
+                    if (chunkProvider.chunkMap.getPlayers(pos, false).count() == 0)
+                        world.tickChunk(world.getChunk(pos.x, pos.z), tickSpeed);
+                }
+            });
+        }
+    }
 }

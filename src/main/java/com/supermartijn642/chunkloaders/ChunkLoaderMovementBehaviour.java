@@ -14,8 +14,8 @@ public class ChunkLoaderMovementBehaviour extends MovementBehaviour {
     @Override
     public void visitNewPosition(MovementContext context, BlockPos pos) {
         super.visitNewPosition(context, pos);
-        
-        if(context.world.isClientSide()) {
+
+        if (context.world.isClientSide()) {
             return;
         }
 
@@ -23,9 +23,10 @@ public class ChunkLoaderMovementBehaviour extends MovementBehaviour {
 
         BlockPos lastLoaderPosition = (BlockPos) context.temporaryData;
         if (lastLoaderPosition != null) {
-            ChunkLoaderTile.unloadChunks(context.world, lastLoaderPosition, context.tileData.getCompound("data"));
+            ChunkLoaderTile.moveLoader(context.world, lastLoaderPosition, pos, context.tileData.getCompound("data"));
+        } else {
+            ChunkLoaderTile.loadChunks(context.world, pos, context.tileData.getCompound("data"));
         }
-        ChunkLoaderTile.loadChunks(context.world, pos, context.tileData.getCompound("data"));
 
         context.temporaryData = pos;
     }
@@ -34,12 +35,12 @@ public class ChunkLoaderMovementBehaviour extends MovementBehaviour {
     public void stopMoving(MovementContext context) {
         super.stopMoving(context);
 
-        if(context.world.isClientSide()) {
+        if (context.world.isClientSide()) {
             return;
         }
 
         ChunkLoaderUtil.debug("movement.stopMoving() called");
-        
+
         BlockPos lastLoaderPosition = (BlockPos) context.temporaryData;
         context.temporaryData = null;
         if (lastLoaderPosition != null) {

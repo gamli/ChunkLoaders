@@ -20,6 +20,7 @@ import org.apache.commons.lang3.tuple.ImmutableTriple;
 import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Created 7/10/2020 by SuperMartijn642
@@ -45,6 +46,31 @@ public class ChunkLoaderTile extends TileEntity {
         this.gridSize = gridSize;
         this.radius = (gridSize - 1) / 2;
         this.grid = new boolean[gridSize][gridSize];
+    }
+
+    public static void moveLoader(World world, BlockPos loaderFrom, BlockPos loaderTo, CompoundNBT tag) {
+
+        ChunkLoaderUtil.debug("tile.static.move(World, BlockPos, CompoundNBT, List<ChunkPos>) called");
+
+        boolean[][] grid = readGrid(tag);
+
+        List<ChunkPos> chunksFrom = activeChunks(world, loaderFrom, grid);
+        List<ChunkPos> chunksTo = activeChunks(world, loaderTo, grid);
+
+        List<ChunkPos> chunksToUnload = chunksFrom
+                .stream()
+                .filter(chunk -> !chunksTo.contains(chunk))
+                .collect(Collectors.toList());
+        List<ChunkPos> chunksToLoad = chunksTo
+                .stream()
+                .filter(chunk -> !chunksFrom.contains(chunk))
+                .collect(Collectors.toList());
+
+        unloadChunks(world, loaderFrom, tag, chunksToUnload);
+        loadChunks(world, loaderTo, tag, chunksToLoad);
+
+        world.getCapability(ChunkLoaderUtil.TRACKER_CAPABILITY)
+                .ifPresent(tracker -> tracker.moveLoader(loaderFrom, loaderTo));
     }
 
     public void setPlacedBy(World worldIn, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
@@ -114,7 +140,7 @@ public class ChunkLoaderTile extends TileEntity {
         }
 
         ChunkLoaderUtil.debug("tile.onLoad() called");
-        
+
         if (this.team != null && this.player != null) {
             loadChunks();
         } else {
@@ -135,12 +161,7 @@ public class ChunkLoaderTile extends TileEntity {
 
         ChunkLoaderUtil.debug("tile.static.loadChunks(World, BlockPos, CompoundNBT) called");
 
-        ImmutableTriple<Integer, Integer, boolean[][]> sizeRadiusGrid = readSizeRadiusGrid(tag);
-        Integer gridSize = sizeRadiusGrid.left;
-        if (gridSize == null) {
-            ChunkLoaderUtil.error("Missing gridSize");
-        }
-        boolean[][] grid = sizeRadiusGrid.right;
+        boolean[][] grid = readGrid(tag);
 
         List<ChunkPos> chunks = activeChunks(world, loader, grid);
 
@@ -174,18 +195,20 @@ public class ChunkLoaderTile extends TileEntity {
 
         ChunkLoaderUtil.debug("tile.static.unloadChunks(World, BlockPos, CompoundNBT) called");
 
+        boolean[][] grid = readGrid(tag);
+
+        List<ChunkPos> chunks = activeChunks(world, loader, grid);
+
+        unloadChunks(world, loader, tag, chunks);
+    }
+
+    public static void unloadChunks(World world, BlockPos loader, CompoundNBT tag, List<ChunkPos> chunks) {
+
+        ChunkLoaderUtil.debug("tile.static.unloadChunks(World, BlockPos, CompoundNBT, List<ChunkPos>) called");
+
         UUID team = readTeam(tag);
 
         UUID player = readPlayer(tag);
-
-        ImmutableTriple<Integer, Integer, boolean[][]> sizeRadiusGrid = readSizeRadiusGrid(tag);
-        Integer gridSize = sizeRadiusGrid.left;
-        if (gridSize == null) {
-            ChunkLoaderUtil.error("Missing gridSize");
-        }
-        boolean[][] grid = sizeRadiusGrid.right;
-
-        List<ChunkPos> chunks = activeChunks(world, loader, grid);
 
         unloadChunks(world, loader, team, player, chunks);
     }
@@ -356,17 +379,12 @@ public class ChunkLoaderTile extends TileEntity {
         this.player = readPlayer(tag);
         ChunkLoaderUtil.debug("tile.handleData() playerId: " + player);
 
-        ImmutableTriple<Integer, Integer, boolean[][]> sizeRadiusGrid = readSizeRadiusGrid(tag);
+        boolean[][] grid = readGrid(tag);
+        this.gridSize = grid.length;
+        this.radius = (gridSize - 1) / 2;
+        this.grid = grid;
 
-        if (sizeRadiusGrid.left == null) {
-            ChunkLoaderUtil.error("Missing gridSize");
-            return;
-        }
-        this.gridSize = sizeRadiusGrid.left;
-        this.radius = sizeRadiusGrid.middle;
-        this.grid = sizeRadiusGrid.right;
-
-        // TODO smelly
+        // TODO this seems wrong
         if (this.level != null && !this.level.isClientSide()) {
             this.dataChanged();
         }
@@ -380,15 +398,13 @@ public class ChunkLoaderTile extends TileEntity {
         return readData(tag, NBT_PLAYER_ID, dataTag -> dataTag.getUUID(NBT_PLAYER_ID));
     }
 
-    private static ImmutableTriple<Integer, Integer, boolean[][]> /*[x][z]*/ readSizeRadiusGrid(CompoundNBT tag) {
+    private static boolean[][] /*[x][z]*/ readGrid(CompoundNBT tag) {
 
         Integer gridSize = readData(tag, NBT_GRID_SIZE, dataTag -> dataTag.getInt(NBT_GRID_SIZE));
 
         if (gridSize == null) {
-            return new ImmutableTriple<>(null, null, null);
+            return null;
         }
-
-        int radius = (gridSize - 1) / 2;
 
         boolean[][] grid = new boolean[gridSize][gridSize];
         for (int x = 0; x < gridSize; x++) {
@@ -398,7 +414,8 @@ public class ChunkLoaderTile extends TileEntity {
                 grid[x][z] = xzValue == null ? false : xzValue;
             }
         }
-        return new ImmutableTriple<>(gridSize, radius, grid);
+
+        return grid;
     }
 
     private static <TValue> TValue readData(CompoundNBT tag, String dataKey, Function<CompoundNBT, TValue> readValue) {
