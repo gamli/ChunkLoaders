@@ -50,8 +50,6 @@ public class ChunkLoaderTile extends TileEntity {
 
     public static void moveLoader(World world, BlockPos loaderFrom, BlockPos loaderTo, CompoundNBT tag) {
 
-        ChunkLoaderUtil.debug("tile.static.move(World, BlockPos, CompoundNBT, List<ChunkPos>) called");
-
         boolean[][] grid = readGrid(tag);
 
         List<ChunkPos> chunksFrom = activeChunks(world, loaderFrom, grid);
@@ -79,13 +77,10 @@ public class ChunkLoaderTile extends TileEntity {
             return;
         }
 
-        ChunkLoaderUtil.debug("tile.setPlacedBy() called");
-
         PlayerEntity player;
         if (placer instanceof PlayerEntity) {
             player = (PlayerEntity) placer;
         } else {
-            ChunkLoaderUtil.error("Not placed by player - placer: " + placer);
             return;
         }
 
@@ -110,8 +105,6 @@ public class ChunkLoaderTile extends TileEntity {
             return;
         }
 
-        ChunkLoaderUtil.debug("tile.setRemoved() called");
-
         List<ChunkPos> chunks = activeChunks(this.level, this.worldPosition, this.grid);
 
         unloadChunks(this.level, this.worldPosition, this.team, this.player, chunks);
@@ -122,35 +115,27 @@ public class ChunkLoaderTile extends TileEntity {
         if (isClientSide()) {
             return;
         }
-
-        ChunkLoaderUtil.debug("tile.onPlace() called");
+        
         if (this.team != null && this.player != null) {
             loadChunks();
-        } else {
-            ChunkLoaderUtil.debug("Missing team or player - team: " + this.team + ", player: " + this.player);
         }
     }
 
     @Override
     public void onLoad() {
+        
         super.onLoad();
 
         if (isClientSide()) {
             return;
         }
 
-        ChunkLoaderUtil.debug("tile.onLoad() called");
-
         if (this.team != null && this.player != null) {
             loadChunks();
-        } else {
-            ChunkLoaderUtil.debug("Missing team or player - team: " + this.team + ", player: " + this.player);
         }
     }
 
     private void loadChunks() {
-
-        ChunkLoaderUtil.debug("tile.loadChunks() called");
 
         List<ChunkPos> chunks = activeChunks(this.level, this.worldPosition, this.grid);
 
@@ -158,8 +143,6 @@ public class ChunkLoaderTile extends TileEntity {
     }
 
     public static void loadChunks(World world, BlockPos loader, CompoundNBT tag) {
-
-        ChunkLoaderUtil.debug("tile.static.loadChunks(World, BlockPos, CompoundNBT) called");
 
         boolean[][] grid = readGrid(tag);
 
@@ -170,8 +153,6 @@ public class ChunkLoaderTile extends TileEntity {
 
     public static void loadChunks(World world, BlockPos loader, CompoundNBT tag, List<ChunkPos> chunks) {
 
-        ChunkLoaderUtil.debug("tile.static.loadChunks(World, BlockPos, CompoundNBT, List<ChunkPos>) called");
-
         UUID team = readTeam(tag);
 
         UUID player = readPlayer(tag);
@@ -180,20 +161,13 @@ public class ChunkLoaderTile extends TileEntity {
     }
 
     public static void loadChunks(World world, BlockPos loader, UUID team, UUID player, List<ChunkPos> chunks) {
-
-        ChunkLoaderUtil.debug("tile.static.loadChunks(World, BlockPos, UUID, UUID, List<ChunkPos>) called");
-
         if (team != null && player != null) {
             world.getCapability(ChunkLoaderUtil.TRACKER_CAPABILITY)
                     .ifPresent(tracker -> chunks.forEach(chunk -> tracker.add(chunk, loader, team, player)));
-        } else {
-            ChunkLoaderUtil.error("Missing team or player - team: " + team + ", player: " + player);
         }
     }
 
     public static void unloadChunks(World world, BlockPos loader, CompoundNBT tag) {
-
-        ChunkLoaderUtil.debug("tile.static.unloadChunks(World, BlockPos, CompoundNBT) called");
 
         boolean[][] grid = readGrid(tag);
 
@@ -204,8 +178,6 @@ public class ChunkLoaderTile extends TileEntity {
 
     public static void unloadChunks(World world, BlockPos loader, CompoundNBT tag, List<ChunkPos> chunks) {
 
-        ChunkLoaderUtil.debug("tile.static.unloadChunks(World, BlockPos, CompoundNBT, List<ChunkPos>) called");
-
         UUID team = readTeam(tag);
 
         UUID player = readPlayer(tag);
@@ -214,21 +186,13 @@ public class ChunkLoaderTile extends TileEntity {
     }
 
     public static void unloadChunks(World world, BlockPos loader, UUID team, UUID player, List<ChunkPos> chunks) {
-
-        ChunkLoaderUtil.debug("tile.static.unloadChunks(World, BlockPos, UUID, UUID, List<ChunkPos>) called");
-
         if (team != null && player != null) {
             world.getCapability(ChunkLoaderUtil.TRACKER_CAPABILITY)
                     .ifPresent(tracker -> chunks.forEach(chunkPos -> tracker.remove(chunkPos, loader, team, player)));
-        } else {
-            ChunkLoaderUtil.error("Missing team or player - team: " + team + ", player: " + player);
         }
     }
 
     private static List<ChunkPos> activeChunks(World world, BlockPos loader, boolean[][] grid) {
-
-        ChunkLoaderUtil.debug("tile.static.activeChunks(World, BlockPos, boolean[][]) called");
-
         List<ChunkPos> chunks = new ArrayList<>();
         if (world != null) {
             ChunkPos loaderChunk = world.getChunk(loader).getPos();
@@ -241,8 +205,6 @@ public class ChunkLoaderTile extends TileEntity {
                     }
                 }
             }
-        } else {
-            ChunkLoaderUtil.error("Missing world");
         }
         return chunks;
     }
@@ -253,7 +215,6 @@ public class ChunkLoaderTile extends TileEntity {
             return;
         }
 
-        ChunkLoaderUtil.debug("tile.onToggle() called");
         this.level.getCapability(ChunkLoaderUtil.TRACKER_CAPABILITY).ifPresent(tracker -> {
             ChunkPos pos = this.level.getChunk(this.worldPosition).getPos();
             if (this.grid[xOffset + radius][zOffset + radius]) {
@@ -308,7 +269,6 @@ public class ChunkLoaderTile extends TileEntity {
 
     @Override
     public void load(BlockState state, CompoundNBT compound) {
-        ChunkLoaderUtil.debug("tile.load() called - NBT: " + compound);
         super.load(state, compound);
         this.handleData(compound.getCompound("data"));
     }
@@ -322,7 +282,6 @@ public class ChunkLoaderTile extends TileEntity {
 
     @Override
     public void handleUpdateTag(BlockState state, CompoundNBT tag) {
-        ChunkLoaderUtil.debug("tile.handleUpdateTag() called");
         super.handleUpdateTag(state, tag);
         this.handleData(tag.getCompound("data"));
     }
@@ -339,24 +298,19 @@ public class ChunkLoaderTile extends TileEntity {
 
     @Override
     public void onDataPacket(NetworkManager net, SUpdateTileEntityPacket pkt) {
-        ChunkLoaderUtil.debug("tile.onDataPacket() called");
         this.handleData(pkt.getTag());
     }
 
     private CompoundNBT getData() {
 
-        ChunkLoaderUtil.debug("tile.getData() called");
-
         CompoundNBT tag = new CompoundNBT();
 
         if (this.team != null) {
             tag.putUUID(NBT_TEAM_ID, this.team);
-            ChunkLoaderUtil.debug("tile.getData() teamId: " + tag.getUUID(NBT_TEAM_ID));
         }
 
         if (this.player != null) {
             tag.putUUID(NBT_PLAYER_ID, this.player);
-            ChunkLoaderUtil.debug("tile.getData() playerId: " + tag.getUUID(NBT_PLAYER_ID));
         }
 
         tag.putInt(NBT_GRID_SIZE, this.gridSize);
@@ -371,13 +325,9 @@ public class ChunkLoaderTile extends TileEntity {
 
     private void handleData(CompoundNBT tag) {
 
-        ChunkLoaderUtil.debug("tile.handleData() called");
-
         this.team = readTeam(tag);
-        ChunkLoaderUtil.debug("tile.handleData() teamId: " + team);
 
         this.player = readPlayer(tag);
-        ChunkLoaderUtil.debug("tile.handleData() playerId: " + player);
 
         boolean[][] grid = readGrid(tag);
         this.gridSize = grid.length;

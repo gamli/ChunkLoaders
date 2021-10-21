@@ -92,23 +92,17 @@ public class ChunkLoaderBlock extends Block implements IWaterLoggable {
 
     @Override
     public void setPlacedBy(World worldIn, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
-        ChunkLoaderUtil.debug("block.setPlacedBy() called");
         TileEntity tileEntity = worldIn.getBlockEntity(pos);
         if (tileEntity instanceof ChunkLoaderTile) {
             ((ChunkLoaderTile) tileEntity).setPlacedBy(worldIn, pos, state, placer, stack);
-        } else {
-            ChunkLoaderUtil.error("block.setPlacedBy() wrong tile entity: " + tileEntity);
         }
     }
 
     @Override
     public void onPlace(BlockState state, World worldIn, BlockPos pos, BlockState oldState, boolean isMoving) {
-        ChunkLoaderUtil.debug("block.onPlace() called");
         TileEntity tile = worldIn.getBlockEntity(pos);
         if (tile instanceof ChunkLoaderTile) {
             ((ChunkLoaderTile) tile).onPlace();
-        } else {
-            ChunkLoaderUtil.error("block.onPlace() tile entity is not a ChunkLoaderTile: " + tile);
         }
     }
 
